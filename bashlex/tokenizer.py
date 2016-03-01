@@ -1039,6 +1039,7 @@ class tokenizer(object):
 
             if c == '\\' and remove_quoted_newline and self._shell_input_line[self._shell_input_line_index] == '\n':
                 self._line_number += 1
+                self._shell_input_line_index += 1  #put next line after \ as part of previous CommandNode
                 continue
             else:
                 return c

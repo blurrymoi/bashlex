@@ -1124,5 +1124,14 @@ class test_parser(unittest.TestCase):
         self.assertRaises(errors.ParsingError, parse, 'cat << \'EOF\" \na \nEOF')
         self.assertRaises(errors.ParsingError, parse, 'cat << \"EOF\' \na \nEOF')
 
+    def test_backslash(self):
+        s = 'a \\\nb'
+        self.assertASTEquals(s,
+                commandnode(s,
+                  wordnode('a'),
+                  wordnode('b')))
+
+
+
 
 
