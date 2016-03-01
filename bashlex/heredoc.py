@@ -1,4 +1,5 @@
 from bashlex import ast, errors
+import re
 
 def gatherheredocuments(tokenizer):
     # if we're at the end of the input and we're not strict, allow skipping
@@ -12,8 +13,8 @@ def gatherheredocuments(tokenizer):
         makeheredoc(tokenizer, redirnode, 0, killleading)
 
 def makeheredoc(tokenizer, redirnode, lineno, killleading):
-    # redirword = string_quote_removal(redirectnode.word)
-    redirword = redirnode.output.word
+    redirword = string_quote_removal(redirnode.output.word)
+    #redirword = redirnode.output.word
     document = []
 
     startpos = tokenizer._shell_input_line_index
@@ -52,3 +53,8 @@ def makeheredoc(tokenizer, redirnode, lineno, killleading):
         redirnode.pos = (redirnode.pos[0], endpos)
 
     return document
+
+def string_quote_removal(s):
+    ''' removes potential leading and ending 's or "s (only if they match)
+        for variable expansion disabling in heredoc '''
+    return re.sub(r'^[\'"]|[\'"]$', '', s)

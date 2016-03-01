@@ -1106,3 +1106,23 @@ class test_parser(unittest.TestCase):
               ])
             ),
         )
+
+    def test_heredoc(self):
+        def test_heredoc_with_encloser(string, encloser):
+            self.assertASTEquals(string,
+                commandnode('cat << {0}EOF{0}'.format(encloser),
+                    wordnode('cat'),
+                    redirectnode('<< {0}EOF{0}'.format(encloser), None, '<<', wordnode('{0}EOF{0}'.format(encloser)),
+                                 heredocnode('a \nEOF')),
+                ),
+            )
+
+        test_heredoc_with_encloser('cat << EOF \na \nEOF', "")
+        test_heredoc_with_encloser('cat << \'EOF\' \na \nEOF', '\'')
+        test_heredoc_with_encloser('cat << \"EOF\" \na \nEOF', '"')
+
+        self.assertRaises(errors.ParsingError, parse, 'cat << \'EOF\" \na \nEOF')
+        self.assertRaises(errors.ParsingError, parse, 'cat << \"EOF\' \na \nEOF')
+
+
+
