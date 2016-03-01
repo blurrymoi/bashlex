@@ -592,7 +592,7 @@ def parse(s, strictmode=True, expansionlimit=None, convertpos=False):
         def visitheredoc(self, node, value):
             self.end = node.pos[1]
 
-    # find the 'real' end incase we have a heredoc in there
+    # find the 'real' end in case we have a heredoc in there
     ef = _endfinder()
     ef.visit(parts[-1])
     index = max(parts[-1].pos[1], ef.end) + 1
