@@ -143,13 +143,13 @@ class test_parser(unittest.TestCase):
                   redirectnode('2>&1', 2, '>&', 1)))
 
     def test_multiline(self):
-        s = 'a\nb'
-        self.assertASTsEquals(s, [
-                              commandnode('a',
-                                wordnode('a')),
-                              commandnode('b',
-                                wordnode('b'))
-                              ])
+        for s in ('a\nb', 'a\n\nb'):
+              self.assertASTsEquals(s, [
+                                    commandnode('a',
+                                      wordnode('a')),
+                                    commandnode('b',
+                                      wordnode('b'))
+                                    ])
 
     def test_pipeline(self):
         s = 'a | b'
@@ -1078,6 +1078,14 @@ class test_parser(unittest.TestCase):
                           ]),
                         )
                         )
+
+    def test_comments(self):
+          s = '# \n a #comment'
+          self.assertASTEquals(s,
+                               commandnode('a',
+                                  wordnode('a'),
+                               )
+                              )
 
     def test_parameter_braces(self):
         return

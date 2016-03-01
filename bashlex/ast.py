@@ -33,7 +33,9 @@ class nodevisitor(object):
 
     def visit(self, n):
         k = n.kind
-        if k == 'operator':
+        if k == 'newline':
+            self.visitnode(n)
+        elif k == 'operator':
             self._visitnode(n, n.op)
         elif k == 'list':
             dochild = self._visitnode(n, n.parts)
