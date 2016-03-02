@@ -35,6 +35,12 @@ class nodevisitor(object):
         k = n.kind
         if k == 'newline':
             self.visitnode(n)
+        elif k == 'pattern':
+            dochild = self._visitnode(n, n.pattern)
+            if dochild is None or dochild:
+                for child in n.pattern:
+                    self.visit(child)
+            self._visitnode(n, n.actions)
         elif k == 'operator':
             self._visitnode(n, n.op)
         elif k == 'list':
@@ -59,6 +65,11 @@ class nodevisitor(object):
                 for child in n.redirects:
                     self.visit(child)
         elif k in ('if', 'for', 'while', 'until'):
+            dochild = self._visitnode(n, n.parts)
+            if dochild is None or dochild:
+                for child in n.parts:
+                    self.visit(child)
+        elif k == 'case':
             dochild = self._visitnode(n, n.parts)
             if dochild is None or dochild:
                 for child in n.parts:
@@ -97,6 +108,8 @@ class nodevisitor(object):
 
     def visitnode(self, n):
         pass
+    def visitpattern(self, n, parts):
+        pass
     def visitnodeend(self, n):
         pass
     def visitoperator(self, n, op):
@@ -114,6 +127,8 @@ class nodevisitor(object):
     def visitfor(self, node, parts):
         pass
     def visitwhile(self, node, parts):
+        pass
+    def visitcase(self, node, parts):
         pass
     def visituntil(self, node, parts):
         pass

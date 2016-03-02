@@ -286,7 +286,12 @@ def p_case_command(p):
     '''case_command : CASE WORD newline_list IN newline_list ESAC
                     | CASE WORD newline_list IN case_clause_sequence newline_list ESAC
                     | CASE WORD newline_list IN case_clause ESAC'''
-    raise NotImplementedError ('case command')
+    parts = _makeparts(p)
+    p[0] = ast.node(kind='compound',
+                    redirects=[],
+                    list=[ast.node(kind='case', parts=parts, pos=_partsspan(parts))],
+                    pos=_partsspan(parts))
+
 
 def p_function_def(p):
     '''function_def : WORD LEFT_PAREN RIGHT_PAREN newline_list function_body
@@ -367,17 +372,31 @@ def p_elif_clause(p):
             parts.append(ast.node(kind='reservedword', word=p[i], pos=p.lexspan(i)))
     p[0] = parts
 
+
 def p_case_clause(p):
     '''case_clause : pattern_list
                    | case_clause_sequence pattern_list'''
-    raise NotImplementedError('case clause')
+    if len(p) == 2:
+        p[0] = p[1]
+    else:
+        p[2].append(p[1])
+        p[0] = p[2]
+
 
 def p_pattern_list(p):
     '''pattern_list : newline_list pattern RIGHT_PAREN compound_list
                     | newline_list pattern RIGHT_PAREN newline_list
                     | newline_list LEFT_PAREN pattern RIGHT_PAREN compound_list
                     | newline_list LEFT_PAREN pattern RIGHT_PAREN newline_list'''
-    raise NotImplementedError('pattern list')
+    def _make_pattern(part_, action_):
+        return ast.node(kind='pattern', pattern=part_,  actions=action_.parts, pos=(part_[0].pos[0], action_.pos[1]))
+
+    if len(p) == 5:
+        p[0] = _make_pattern(p[2], p[4])
+    else:
+        assert len(p) == 6
+        p[0] = _make_pattern(p[3], p[5])
+
 
 def p_case_clause_sequence(p):
     '''case_clause_sequence : pattern_list SEMI_SEMI
@@ -386,12 +405,23 @@ def p_case_clause_sequence(p):
                             | case_clause_sequence pattern_list SEMI_AND
                             | pattern_list SEMI_SEMI_AND
                             | case_clause_sequence pattern_list SEMI_SEMI_AND'''
-    raise NotImplementedError('case clause')
+    if len(p) == 3:
+        p[0] = [p[1]]
+    else:
+        p[1].append(p[2])
+        p[0] = p[1]
+
 
 def p_pattern(p):
     '''pattern : WORD
                | pattern BAR WORD'''
-    raise NotImplementedError('pattern')
+    parserobj = p.context
+    if len(p) == 2:
+        p[0] = [_expandword(parserobj, p.slice[1])]
+    else:
+        p[0] = p[1]
+        p[0].append(_expandword(parserobj, p.slice[3]))
+
 
 def p_list(p):
     '''list : newline_list list0'''
@@ -554,6 +584,7 @@ for tt in tokenizer.tokentype:
     yaccparser.action[62][tt.name] = -1
     yaccparser.action[63][tt.name] = -141
     yaccparser.action[8][tt.name] = -2
+
 
 def parsesingle(s, strictmode=True, expansionlimit=None, convertpos=False):
     '''like parse, but only consumes a single top level node, e.g. parsing
