@@ -389,12 +389,15 @@ def p_pattern_list(p):
                     | newline_list LEFT_PAREN pattern RIGHT_PAREN compound_list
                     | newline_list LEFT_PAREN pattern RIGHT_PAREN newline_list'''
     def _make_pattern(part_, action_):
-        return ast.node(kind='pattern', pattern=part_,  actions=action_.parts, pos=(part_[0].pos[0], action_.pos[1]))
+        if action_.kind == 'list':
+            action_ = action_.parts
+        else:
+            action_ = [action_]
+        return ast.node(kind='pattern', pattern=part_,  actions=action_, pos=(part_[0].pos[0], action_[-1].pos[1]))
 
     if len(p) == 5:
         p[0] = _make_pattern(p[2], p[4])
     else:
-        assert len(p) == 6
         p[0] = _make_pattern(p[3], p[5])
 
 
