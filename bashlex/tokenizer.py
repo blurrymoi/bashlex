@@ -165,8 +165,10 @@ class token(object):
             else:
                 return self.ttype.name
 
-    def __nonzero__(self):
+    def __bool__(self):
         return not (self.ttype is None and self.value is None)
+
+    __nonzero__ = __bool__
 
     def __eq__(self, other):
         return isinstance(other, token) and (self.type == other.type and

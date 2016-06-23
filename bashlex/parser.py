@@ -1,4 +1,4 @@
-import os, copy
+import os, copy, sys
 
 from bashlex import yacc, tokenizer, state, ast, subst, flags, errors, heredoc
 
@@ -578,15 +578,29 @@ yaccparser = yacc.yacc(tabmodule='bashlex.parsetab',
               outputdir=os.path.dirname(__file__),
               debug=False)
 
-# some hack to fix yacc's reduction on command substitutions
-yaccparser.action[45]['RIGHT_PAREN'] = -155
-yaccparser.action[11]['RIGHT_PAREN'] = -148
-yaccparser.action[133]['RIGHT_PAREN'] = -154
 
-for tt in tokenizer.tokentype:
-    yaccparser.action[62][tt.name] = -1
-    yaccparser.action[63][tt.name] = -141
-    yaccparser.action[8][tt.name] = -2
+#Python2 and Python3 end up with different action tables
+#Py2
+if sys.version_info[0] == 2:
+    # some hack to fix yacc's reduction on command substitutions
+    yaccparser.action[45]['RIGHT_PAREN'] = -155
+    yaccparser.action[11]['RIGHT_PAREN'] = -148
+    yaccparser.action[133]['RIGHT_PAREN'] = -154
+
+    for tt in tokenizer.tokentype:
+        yaccparser.action[62][tt.name] = -1
+        yaccparser.action[63][tt.name] = -141
+        yaccparser.action[8][tt.name] = -2
+#Py3
+else:
+    for tt in tokenizer.tokentype:
+        yaccparser.action[90][tt.name] = -1
+        yaccparser.action[91][tt.name] = -141
+        yaccparser.action[7][tt.name] = -2
+
+    yaccparser.action[55]['RIGHT_PAREN'] = -155
+    yaccparser.action[8]['RIGHT_PAREN'] = -148
+    yaccparser.action[134]['RIGHT_PAREN'] = -154
 
 
 def parsesingle(s, strictmode=True, expansionlimit=None, convertpos=False):
@@ -646,7 +660,7 @@ def parse(s, strictmode=True, expansionlimit=None, convertpos=False):
         for tree in parts:
             ast.posconverter(s).visit(tree)
 
-    parts = filter(lambda x: x.kind != 'newline', parts)
+    parts = list(filter(lambda x: x.kind != 'newline', parts))
     return parts
 
 class _parser(object):
