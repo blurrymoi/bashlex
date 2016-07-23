@@ -137,7 +137,7 @@ wordflags = flags.word
 parserflags = flags.parser
 
 class token(object):
-    def __init__(self, type_, value, pos=None, flags=None):
+    def __init__(self, type_, value, pos=None, flags=None, lineno=0, disc_newline=False):
         if type_ is not None:
             assert isinstance(type_, tokentype)
 
@@ -155,6 +155,9 @@ class token(object):
             self.lexpos = self.endlexpos = None
 
         self.flags = flags
+        self.lineno = lineno
+        self.discard_next_newline = disc_newline
+
 
     @property
     def type(self):
@@ -206,6 +209,8 @@ class tokenizer(object):
             self._shell_input_line += '\n' # 2431
             self._added_newline = True
         self._shell_input_line_index = 0
+        self._lineno = 1
+        self._discard_next_newline = False
         # self._shell_input_line_terminator = None
         self._two_tokens_ago = twotokensago or token(None, None)
         self._token_before_that = tokenbeforethat or token(None, None)
@@ -260,7 +265,8 @@ class tokenizer(object):
         p2 = self._positions.pop()
         p1 = self._positions.pop()
         pos = [p1, p2]
-        return token(type_, value, pos, flags)
+        lineno=self._lineno
+        return token(type_, value, pos, flags, lineno=lineno, disc_newline=self._discard_next_newline)
 
     def token(self):
         self._two_tokens_ago, self._token_before_that, self._last_read_token = \
@@ -307,6 +313,7 @@ class tokenizer(object):
         if character == '\n':
             # XXX 3034 ALIAS
             heredoc.gatherheredocuments(self)
+            self._lineno += 1
 
             self._parserstate.discard(parserflags.ASSIGNOK)
             return tokentype(character)
@@ -534,6 +541,8 @@ class tokenizer(object):
         self._recordpos()
 
         tokenword = ''.join(tokenword)
+        if self.comment_or_spaces_only_remain():
+            self._discard_next_newline = True
 
         if d['all_digit_token'] and (c in '<>' or self._last_read_token.ttype in (tokentype.LESS_AND, tokentype.GREATER_AND)) and shutils.legal_number(tokenword):
             return self._createtoken(tokentype.NUMBER, int(tokenword))
@@ -1041,6 +1050,7 @@ class tokenizer(object):
 
             if c == '\\' and remove_quoted_newline and self._shell_input_line[self._shell_input_line_index] == '\n':
                 self._line_number += 1
+                self._lineno += 1
                 self._shell_input_line_index += 1  #put next line after \ as part of previous CommandNode
                 continue
             else:
@@ -1084,6 +1094,7 @@ class tokenizer(object):
                 peekc = self._getc()
                 if peekc == '\n':
                     self._line_number += 1
+                    self._lineno += 1
                     continue
                 else:
                     self._ungetc(peekc)
@@ -1156,6 +1167,28 @@ class tokenizer(object):
 
         if self._parserstate & parserflags.CONDEXPR and tokstr == ']]':
             return tokentype.COND_END
+
+    def comment_or_spaces_only_remain(self):
+        """Tests whether the remainder of the parsed line consists
+        of a comment (starts with '#') or whitespaces followed by a '\n'.
+        If there is a same-line comment or trailing whitespaces,
+        a NewlineNode is produced on next iteration of parsing.
+        We need to disregard it because of line counting.
+        """
+        if self._shell_input_line_index >= len(self._shell_input_line)-1:
+            return False
+        if self._shell_input_line[self._shell_input_line_index] != ' ':
+            return False
+        temp_index = self._shell_input_line_index
+        while True:
+            char = self._shell_input_line[temp_index]
+            if char in ['\n','#']:
+                return True
+            elif char in [' ', '\t']:
+                temp_index += 1
+                continue
+            else:
+                return False
 
 def split(s):
     '''a utility function that mimics shlex.split but handles more

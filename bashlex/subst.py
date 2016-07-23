@@ -2,7 +2,7 @@ import copy
 
 from bashlex import ast, flags, tokenizer, errors
 
-def _recursiveparse(parserobj, base, sindex, tokenizerargs=None):
+def _recursiveparse(parserobj, base, sindex, tokenizerargs=None, lineno=0):
     # TODO: fix this hack that prevents mutual import
     from bashlex import parser
 
@@ -23,7 +23,7 @@ def _recursiveparse(parserobj, base, sindex, tokenizerargs=None):
     node = p.parse()
 
     endp = node.pos[1]
-    _adjustpositions(node, sindex, len(base))
+    _adjustpositions(node, sindex, len(base), lineno)
 
     return node, endp
 
@@ -54,7 +54,7 @@ def _extractcommandsubst(parserobj, string, sindex, sxcommand=False):
     else:
         node, si = _parsedolparen(parserobj, string, sindex)
         si += 1
-        return ast.node(kind='commandsubstitution', command=node, pos=(sindex-2, si)), si
+        return ast.node(kind='commandsubstitution', command=node, pos=(sindex-2, si), lineno=node.lineno), si
 
 def _extractprocesssubst(parserobj, string, sindex):
     #return _extractdelimitedstring(tok, string, sindex, starter, '(', ')', sxcommand=True)
@@ -183,11 +183,12 @@ def _paramexpand(parserobj, string, sindex):
 
     return node, zindex
 
-def _adjustpositions(node_, base, endlimit):
+def _adjustpositions(node_, base, endlimit, lineno):
     class v(ast.nodevisitor):
         def visitnode(self, node):
             assert node.pos[1] + base <= endlimit
             node.pos = (node.pos[0] + base, node.pos[1] + base)
+            node.lineno = node.lineno + lineno
     visitor = v()
     visitor.visit(node_)
 
@@ -289,8 +290,8 @@ def _expandwordinternal(parserobj, wordtoken, qheredocument, qdoublequotes, quot
                         sindex[0] = x
 
                         word = string[tindex+1:sindex[0]]
-                        command, ttindex = _recursiveparse(parserobj, word, 0)
-                        _adjustpositions(command, tindex+1, len(string))
+                        command, ttindex = _recursiveparse(parserobj, word, 0, lineno=0)
+                        _adjustpositions(command, tindex+1, len(string), wordtoken.lineno-1)
                         ttindex += 1 # ttindex is on the closing char
 
                         # assert sindex[0] == ttindex
@@ -299,7 +300,8 @@ def _expandwordinternal(parserobj, wordtoken, qheredocument, qdoublequotes, quot
 
                         node = ast.node(kind='commandsubstitution',
                                         command=command,
-                                        pos=(tindex, sindex[0]))
+                                        pos=(tindex, sindex[0]),
+                                        lineno=wordtoken.lineno)
                         parts.append(node)
                         istring += string[tindex:sindex[0]]
 

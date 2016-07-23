@@ -34,13 +34,14 @@ class nodevisitor(object):
     def visit(self, n):
         k = n.kind
         if k == 'newline':
-            self.visitnode(n)
+            self._visitnode(n)
         elif k == 'pattern':
-            dochild = self._visitnode(n, n.pattern)
+            dochild = self._visitnode(n, n.pattern, n.actions)
             if dochild is None or dochild:
                 for child in n.pattern:
                     self.visit(child)
-            self._visitnode(n, n.actions)
+                for child in n.actions:
+                    self.visit(child)
         elif k == 'operator':
             self._visitnode(n, n.op)
         elif k == 'list':
@@ -75,6 +76,7 @@ class nodevisitor(object):
                 for child in n.parts:
                     self.visit(child)
         elif k == 'command':
+            self.correct_heredoc_lineno(n)
             dochild = self._visitnode(n, n.parts)
             if dochild is None or dochild:
                 for child in n.parts:
@@ -106,9 +108,16 @@ class nodevisitor(object):
             raise ValueError('unknown node kind %r' % k)
         self.visitnodeend(n)
 
+    def correct_heredoc_lineno(self, node):
+        for part in node.parts:
+            if part.kind == 'redirect' and part.heredoc:
+                node.lineno = part.heredoc.lineno + 1
+
     def visitnode(self, n):
         pass
-    def visitpattern(self, n, parts):
+    def visitnewline(self, n):
+        pass
+    def visitpattern(self, n, pattern, actions):
         pass
     def visitnodeend(self, n):
         pass
@@ -183,7 +192,7 @@ def _dump(tree, indent='  '):
             return ''.join([
                 '%sNode' % kind.title(),
                 '(',
-                ', '.join(('%s=%s' % field for field in fields)),
+                ', '.join('%s=%s' % field for field in fields),
                 ')'])
         elif isinstance(n, list):
             lines = ['[']
@@ -216,9 +225,12 @@ class posconverter(nodevisitor):
         node.s = self.string[start:end]
 
 class posshifter(nodevisitor):
-    def __init__(self, count):
+    def __init__(self, count, lineno):
         self.count = count
+        self.lineno = lineno
 
     def visitnode(self, node):
         #assert node.pos[1] + base <= endlimit
         node.pos = (node.pos[0] + self.count, node.pos[1] + self.count)
+        if hasattr(node, 'lineno'):
+            node.lineno = node.lineno + self.lineno

@@ -45,8 +45,9 @@ def makeheredoc(tokenizer, redirnode, lineno, killleading):
     endpos = tokenizer._shell_input_line_index - 1
 
     assert hasattr(redirnode, 'heredoc')
+    num_of_lines = document.count('\n') + 1
     redirnode.heredoc = ast.node(kind='heredoc', value=document,
-                                 pos=(startpos, endpos))
+                                 pos=(startpos, endpos), lineno=num_of_lines)
 
     # if the heredoc immediately follows this node, fix its end pos
     if redirnode.pos[1] + 1 == startpos:

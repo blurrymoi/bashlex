@@ -27,7 +27,7 @@ def p_inputunit(p):
         # not part of the current command
         p.accept()
     if p.slice[1].ttype == tokenizer.tokentype.NEWLINE:
-        p[0] = ast.node(kind='newline', pos=(p.lexpos(1), p.lexpos(1)))
+        p[0] = ast.node(kind='newline', pos=(p.lexpos(1), p.lexpos(1)), lineno=1)
         p.accept()
 
 def p_word_list(p):
@@ -51,13 +51,14 @@ def p_redirection_heredoc(p):
     assert isinstance(parserobj, _parser)
 
     output = ast.node(kind='word', word=p[len(p)-1], parts=[],
-                      pos=p.lexspan(len(p)-1))
+                      pos=p.lexspan(len(p)-1), lineno=p.slice[-1].lineno,
+                      discard=p.slice[-1].discard_next_newline)
     if len(p) == 3:
         p[0] = ast.node(kind='redirect', input=None, type=p[1], heredoc=None,
-                        output=output, pos=(p.lexpos(1), p.endlexpos(2)))
+                        output=output, pos=(p.lexpos(1), p.endlexpos(2)), lineno=p.lineno(2))
     else:
         p[0] = ast.node(kind='redirect', input=p[1], type=p[2], heredoc=None,
-                        output=output, pos=(p.lexpos(1), p.endlexpos(3)))
+                        output=output, pos=(p.lexpos(1), p.endlexpos(3)), lineno=p.lineno(3))
 
     if p.slice[len(p)-2].ttype == tokenizer.tokentype.LESS_LESS:
         parserobj.redirstack.append((p[0], False))
@@ -109,13 +110,13 @@ def p_redirection(p):
         if p.slice[2].ttype == tokenizer.tokentype.WORD:
             output = _expandword(parserobj, p.slice[2])
         p[0] = ast.node(kind='redirect', input=None, type=p[1], heredoc=None,
-                        output=output, pos=(p.lexpos(1), p.endlexpos(2)))
+                        output=output, pos=(p.lexpos(1), p.endlexpos(2)), lineno=p.lineno(2))
     else:
         output = p[3]
         if p.slice[3].ttype == tokenizer.tokentype.WORD:
             output = _expandword(parserobj, p.slice[3])
         p[0] = ast.node(kind='redirect', input=p[1], type=p[2], heredoc=None,
-                        output=output, pos=(p.lexpos(1), p.endlexpos(3)))
+                        output=output, pos=(p.lexpos(1), p.endlexpos(3)), lineno=p.lineno(3))
 
 def _expandword(parser, tokenword):
     if parser._expansionlimit == -1:
@@ -128,7 +129,8 @@ def _expandword(parser, tokenword):
         #
         # (the reason we even expand when limit == 0 is to get quote removal)
         node = ast.node(kind='word', word=tokenword,
-                        pos=(tokenword.lexpos, tokenword.endlexpos), parts=[])
+                        pos=(tokenword.lexpos, tokenword.endlexpos), parts=[],
+                        lineno=tokenword.lineno, discard=tokenword.discard_next_newline)
         return node
     else:
         quoted = bool(tokenword.flags & flags.word.QUOTED)
@@ -145,7 +147,8 @@ def _expandword(parser, tokenword):
             parts = [node for node in parts if 'substitution' not in node.kind]
 
         node = ast.node(kind='word', word=expandedword,
-                        pos=(tokenword.lexpos, tokenword.endlexpos), parts=parts)
+                        pos=(tokenword.lexpos, tokenword.endlexpos), parts=parts,
+                        lineno=tokenword.lineno, discard=tokenword.discard_next_newline)
         return node
 
 def p_simple_command_element(p):
@@ -194,7 +197,7 @@ def p_command(p):
             assert p[0].pos[0] < p[0].redirects[-1].pos[1]
             p[0].pos = (p[0].pos[0], p[0].redirects[-1].pos[1])
     else:
-        p[0] = ast.node(kind='command', parts=p[1], pos=_partsspan(p[1]))
+        p[0] = ast.node(kind='command', parts=p[1], pos=_partsspan(p[1]), lineno=p.slice[1].value[-1].lineno)
 
 def p_shell_command(p):
     '''shell_command : for_command
@@ -219,8 +222,9 @@ def p_shell_command(p):
         assert kind in ('while', 'until')
         p[0] = ast.node(kind='compound',
                         redirects=[],
-                        list=[ast.node(kind=kind, parts=parts, pos=_partsspan(parts))],
-                        pos=_partsspan(parts))
+                        list=[ast.node(kind=kind, parts=parts, pos=_partsspan(parts), lineno=parts[-1].lineno)],
+                        pos=_partsspan(parts),
+                        lineno=parts[-1].lineno)
 
     assert p[0].kind == 'compound'
 
@@ -237,7 +241,7 @@ def _makeparts(p):
                 parts.append(_expandword(parserobj, p.slice[i]))
             else:
                 parts.append(ast.node(kind='reservedword', word=p[i],
-                                      pos=p.lexspan(i)))
+                                      pos=p.lexspan(i), lineno=p.lineno(i)))
         else:
             pass
 
@@ -258,13 +262,14 @@ def p_for_command(p):
     # considered as part of the for loop
     for i, part in enumerate(parts):
         if part.kind == 'operator' and part.op == ';':
-            parts[i] = ast.node(kind='reservedword', word=';', pos=part.pos)
+            parts[i] = ast.node(kind='reservedword', word=';', pos=part.pos, lineno=part.lineno)
             break # there could be only one in there...
 
     p[0] = ast.node(kind='compound',
                     redirects=[],
-                    list=[ast.node(kind='for', parts=parts, pos=_partsspan(parts))],
-                    pos=_partsspan(parts))
+                    list=[ast.node(kind='for', parts=parts, pos=_partsspan(parts), lineno=parts[-1].lineno)],
+                    pos=_partsspan(parts),
+                    lineno=parts[-1].lineno)
 
 def p_arith_for_command(p):
     '''arith_for_command : FOR ARITH_FOR_EXPRS list_terminator newline_list DO compound_list DONE
@@ -289,8 +294,9 @@ def p_case_command(p):
     parts = _makeparts(p)
     p[0] = ast.node(kind='compound',
                     redirects=[],
-                    list=[ast.node(kind='case', parts=parts, pos=_partsspan(parts))],
-                    pos=_partsspan(parts))
+                    list=[ast.node(kind='case', parts=parts, pos=_partsspan(parts), lineno=parts[-1].lineno)],
+                    pos=_partsspan(parts),
+                    lineno=parts[-1].lineno)
 
 
 def p_function_def(p):
@@ -302,7 +308,7 @@ def p_function_def(p):
     name = parts[ast.findfirstkind(parts, 'word')]
 
     p[0] = ast.node(kind='function', name=name, body=body, parts=parts,
-                    pos=_partsspan(parts))
+                    pos=_partsspan(parts), lineno=parts[-1].lineno)
 
 def p_function_body(p):
     '''function_body : shell_command
@@ -317,11 +323,11 @@ def p_function_body(p):
 
 def p_subshell(p):
     '''subshell : LEFT_PAREN compound_list RIGHT_PAREN'''
-    lparen = ast.node(kind='reservedword', word=p[1], pos=p.lexspan(1))
-    rparen = ast.node(kind='reservedword', word=p[3], pos=p.lexspan(3))
+    lparen = ast.node(kind='reservedword', word=p[1], pos=p.lexspan(1), lineno=p.lineno(1))
+    rparen = ast.node(kind='reservedword', word=p[3], pos=p.lexspan(3), lineno=p.lineno(3))
     parts = [lparen, p[2], rparen]
     p[0] = ast.node(kind='compound', list=parts, redirects=[],
-                    pos=_partsspan(parts))
+                    pos=_partsspan(parts), lineno=parts[-1].lineno)
 
 def p_coproc(p):
     '''coproc : COPROC shell_command
@@ -341,16 +347,16 @@ def p_if_command(p):
     parts = _makeparts(p)
     p[0] = ast.node(kind='compound',
                     redirects=[],
-                    list=[ast.node(kind='if', parts=parts, pos=_partsspan(parts))],
-                    pos=_partsspan(parts))
+                    list=[ast.node(kind='if', parts=parts, pos=_partsspan(parts), lineno=parts[-1].lineno)],
+                    pos=_partsspan(parts), lineno=parts[-1].lineno)
 
 def p_group_command(p):
     '''group_command : LEFT_CURLY compound_list RIGHT_CURLY'''
-    lcurly = ast.node(kind='reservedword', word=p[1], pos=p.lexspan(1))
-    rcurly = ast.node(kind='reservedword', word=p[3], pos=p.lexspan(3))
+    lcurly = ast.node(kind='reservedword', word=p[1], pos=p.lexspan(1), lineno=p.lineno(1))
+    rcurly = ast.node(kind='reservedword', word=p[3], pos=p.lexspan(3), lineno=p.lineno(3))
     parts = [lcurly, p[2], rcurly]
     p[0] = ast.node(kind='compound', list=parts, redirects=[],
-                    pos=_partsspan(parts))
+                    pos=_partsspan(parts), lineno=parts[-1].lineno)
 
 def p_arith_command(p):
     '''arith_command : ARITH_CMD'''
@@ -369,7 +375,7 @@ def p_elif_clause(p):
         if isinstance(p[i], ast.node):
             parts.append(p[i])
         else:
-            parts.append(ast.node(kind='reservedword', word=p[i], pos=p.lexspan(i)))
+            parts.append(ast.node(kind='reservedword', word=p[i], pos=p.lexspan(i), lineno=p.lineno(i)))
     p[0] = parts
 
 
@@ -393,7 +399,8 @@ def p_pattern_list(p):
             action_ = action_.parts
         else:
             action_ = [action_]
-        return ast.node(kind='pattern', pattern=part_,  actions=action_, pos=(part_[0].pos[0], action_[-1].pos[1]))
+        return ast.node(kind='pattern', pattern=part_,  actions=action_, pos=(part_[0].pos[0], action_[-1].pos[1]),
+                        lineno=action_[-1].lineno)
 
     if len(p) == 5:
         p[0] = _make_pattern(p[2], p[4])
@@ -438,7 +445,7 @@ def p_compound_list(p):
     else:
         parts = p[2]
         if len(parts) > 1:
-            p[0] = ast.node(kind='list', parts=parts, pos=_partsspan(parts))
+            p[0] = ast.node(kind='list', parts=parts, pos=_partsspan(parts), lineno=parts[-1].lineno)
         else:
             p[0] = parts[0]
 
@@ -448,8 +455,8 @@ def p_list0(p):
              | list1 SEMICOLON newline_list'''
     parts = p[1]
     if len(parts) > 1 or p.slice[2].ttype != tokenizer.tokentype.NEWLINE:
-        parts.append(ast.node(kind='operator', op=p[2], pos=p.lexspan(2)))
-        p[0] = ast.node(kind='list', parts=parts, pos=_partsspan(parts))
+        parts.append(ast.node(kind='operator', op=p[2], pos=p.lexspan(2), lineno=p.lineno(2)))
+        p[0] = ast.node(kind='list', parts=parts, pos=_partsspan(parts), lineno=parts[-1].lineno)
     else:
         p[0] = parts[0]
 
@@ -465,7 +472,7 @@ def p_list1(p):
     else:
         p[0] = p[1]
         # XXX newline
-        p[0].append(ast.node(kind='operator', op=p[2], pos=p.lexspan(2)))
+        p[0].append(ast.node(kind='operator', op=p[2], pos=p.lexspan(2), lineno=p.lineno(2)))
         p[0].extend(p[len(p) - 1])
 
 def p_simple_list_terminator(p):
@@ -478,7 +485,7 @@ def p_list_terminator(p):
                        | SEMICOLON
                        | EOF'''
     if p[1] == ';':
-        p[0] = ast.node(kind='operator', op=';', pos=p.lexspan(1))
+        p[0] = ast.node(kind='operator', op=';', pos=p.lexspan(1), lineno=p.lineno(1))
 
 def p_newline_list(p):
     '''newline_list : empty
@@ -495,8 +502,8 @@ def p_simple_list(p):
     if len(p) == 3 or len(p[1]) > 1:
         parts = p[1]
         if len(p) == 3:
-            parts.append(ast.node(kind='operator', op=p[2], pos=p.lexspan(2)))
-        p[0] = ast.node(kind='list', parts=parts, pos=_partsspan(parts))
+            parts.append(ast.node(kind='operator', op=p[2], pos=p.lexspan(2), lineno=p.lineno(2)))
+        p[0] = ast.node(kind='list', parts=parts, pos=_partsspan(parts), lineno=parts[-1].lineno)
     else:
         assert len(p[1]) == 1
         p[0] = p[1][0]
@@ -516,7 +523,7 @@ def p_simple_list1(p):
         p[0] = [p[1]]
     else:
         p[0] = p[1]
-        p[0].append(ast.node(kind='operator', op=p[2], pos=p.lexspan(2)))
+        p[0].append(ast.node(kind='operator', op=p[2], pos=p.lexspan(2), lineno=p.lineno(2)))
         p[0].extend(p[len(p) - 1])
 
 def p_pipeline_command(p):
@@ -530,17 +537,18 @@ def p_pipeline_command(p):
             p[0] = p[1][0]
         else:
             p[0] = ast.node(kind='pipeline', parts=p[1],
-                            pos=(p[1][0].pos[0], p[1][-1].pos[1]))
+                            pos=(p[1][0].pos[0], p[1][-1].pos[1]),
+                            lineno=p[1][-1].lineno)
     else:
         # XXX timespec
-        node = ast.node(kind='reservedword', word='!', pos=p.lexspan(1))
+        node = ast.node(kind='reservedword', word='!', pos=p.lexspan(1), lineno=p.lineno(1))
         if p[2].kind == 'pipeline':
             p[0] = p[2]
             p[0].parts.insert(0, node)
             p[0].pos = (p[0].parts[0].pos[0], p[0].parts[-1].pos[1])
         else:
             p[0] = ast.node(kind='pipeline', parts=[node, p[2]],
-                            pos=(node.pos[0], p[2].pos[1]))
+                            pos=(node.pos[0], p[2].pos[1]), lineno=p.lineno(2))
 
 def p_pipeline(p):
     '''pipeline : pipeline BAR newline_list pipeline
@@ -550,7 +558,7 @@ def p_pipeline(p):
         p[0] = [p[1]]
     else:
         p[0] = p[1]
-        p[0].append(ast.node(kind='pipe', pipe=p[2], pos=p.lexspan(2)))
+        p[0].append(ast.node(kind='pipe', pipe=p[2], pos=p.lexspan(2), lineno=p.lineno(2)))
         p[0].extend(p[len(p) - 1])
 
 def p_timespec(p):
@@ -668,7 +676,14 @@ def parse(s, strictmode=True, expansionlimit=None, convertpos=False):
         if not isinstance(part, ast.node):
             break
 
-        ast.posshifter(index).visit(part)
+        line_index = parts[-1].lineno
+        # disregard next newline in line count
+        # it is either a product of a same-line comment or trailing whitespaces
+        if parts[-1].kind == 'command' and hasattr(parts[-1].parts[-1], 'discard'):
+            if parts[-1].parts[-1].discard and part.kind == 'newline':
+                part.lineno = 0
+
+        ast.posshifter(index, line_index).visit(part)
         parts.append(part)
         ef = _endfinder()
         ef.visit(parts[-1])
