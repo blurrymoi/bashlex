@@ -145,20 +145,20 @@ def _extractprocesssubst(parserobj, string, sindex):
 
 #    return parts, i
 
-def _paramexpand(parserobj, string, sindex):
+def _paramexpand(parserobj, string, sindex, lineno=0):
     node = None
     zindex = sindex + 1
     c = string[zindex] if zindex < len(string) else None
     if c and c in '0123456789$#?-!*@':
         # XXX 7685
         node = ast.node(kind='parameter', value=c,
-                        pos=(sindex, zindex+1))
+                        pos=(sindex, zindex+1), lineno=lineno)
     elif c == '{':
         # XXX 7863
         # TODO not start enough, doesn't consider escaping
         zindex = string.find('}', zindex + 1)
         node = ast.node(kind='parameter', value=string[sindex+2:zindex],
-                        pos=(sindex, zindex+1))
+                        pos=(sindex, zindex+1), lineno=lineno)
         # TODO
         # return _parameterbraceexpand(string, zindex)
     elif c == '(':
@@ -175,7 +175,8 @@ def _paramexpand(parserobj, string, sindex):
                 break
         temp1 = string[sindex:zindex]
         if temp1:
-            return (ast.node(kind='parameter', value=temp1[1:], pos=(sindex, zindex)),
+            return (ast.node(kind='parameter', value=temp1[1:], pos=(sindex, zindex),
+                             lineno=lineno),
                     zindex)
 
     if zindex < len(string):
@@ -268,7 +269,7 @@ def _expandwordinternal(parserobj, wordtoken, qheredocument, qdoublequotes, quot
 
         elif c == '$' and len(string) > 1:
             tindex = sindex[0]
-            node, sindex[0] = _paramexpand(parserobj, string, sindex[0])
+            node, sindex[0] = _paramexpand(parserobj, string, sindex[0], wordtoken.lineno)
             if node:
                 parts.append(node)
             istring += string[tindex:sindex[0]]
