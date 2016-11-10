@@ -1177,7 +1177,7 @@ class tokenizer(object):
         """
         if self._shell_input_line_index >= len(self._shell_input_line)-1:
             return False
-        if self._shell_input_line[self._shell_input_line_index] != ' ':
+        if self._shell_input_line[self._shell_input_line_index] not in [' ', '\t']:
             return False
         temp_index = self._shell_input_line_index
         while True:
