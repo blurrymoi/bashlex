@@ -13,7 +13,7 @@ def gatherheredocuments(tokenizer):
         makeheredoc(tokenizer, redirnode, 0, killleading)
 
 def makeheredoc(tokenizer, redirnode, lineno, killleading):
-    redirword = string_quote_removal(redirnode.output.word)
+    redirword = remove_escape(string_quote_removal(redirnode.output.word))
     #redirword = redirnode.output.word
     document = []
 
@@ -59,3 +59,9 @@ def string_quote_removal(s):
     ''' removes potential leading and ending 's or "s (only if they match)
         for variable expansion disabling in heredoc '''
     return re.sub(r'^[\'"]|[\'"]$', '', s)
+
+def remove_escape(s):
+    '''escaped delimiter in heredoc also disables variable expansion'''
+    if s[0] == "\\":
+        return s[1:]
+    return s
