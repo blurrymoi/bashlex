@@ -215,7 +215,7 @@ def p_shell_command(p):
         p[0] = p[1]
     else:
         # while or until
-        assert p[2].kind == 'list'
+        assert (p[2].kind == 'list' or p.slice[2].type == 'compound_list')
 
         parts = _makeparts(p)
         kind = parts[0].word
