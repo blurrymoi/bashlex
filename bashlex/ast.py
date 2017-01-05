@@ -1,3 +1,5 @@
+from copy import copy
+
 class node(object):
     """
     This class represents a node in the AST built while parsing command lines.
@@ -23,7 +25,12 @@ class node(object):
     def __eq__(self, other):
         if not isinstance(other, node):
             return False
-        return self.__dict__ == other.__dict__
+        self_dict = copy(self.__dict__)
+        other_dict = copy(other.__dict__)
+        for wrd in ["lineno", "discard"]:
+            self_dict.pop(wrd, None)
+            other_dict.pop(wrd, None)
+        return self_dict == other_dict
 
 class nodevisitor(object):
     def _visitnode(self, n, *args, **kwargs):
