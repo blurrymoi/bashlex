@@ -1,3 +1,4 @@
+import sys
 import re, collections, enum
 
 from bashlex import flags, shutils, utils, errors, heredoc, state
@@ -205,6 +206,9 @@ class tokenizer(object):
         self._shell_eof_token = eoftoken
         self._shell_input_line = s
         self._added_newline = False
+        if not self._shell_input_line:
+            print("File empty.")
+            sys.exit(0)
         if self._shell_input_line[-1] != '\n':
             self._shell_input_line += '\n' # 2431
             self._added_newline = True
